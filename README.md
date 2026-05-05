@@ -273,7 +273,7 @@ If this repository is useful for your work, please cite the related thesis or pu
 
 ```text
 T.-K. Nguyen, "Research on planning electric vehicle charging-station infrastructure in urban areas,"
-Master's thesis, Ho Chi Minh City University of Technology and Education, Ho Chi Minh City, Vietnam, 2026.
+Master's thesis, Ho Chi Minh City University of Technology and Engineering, Ho Chi Minh City, Vietnam, 2026.
 ```
 
 ---
