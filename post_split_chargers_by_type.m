@@ -1,16 +1,16 @@
 function post_split_chargers_by_type()
 % Hậu xử lý nghiệm HBIPSO-GR:
-% - phân bổ số CONGSAC theo loại (11/60/150 kW) từ kết quả tổng s(j)
+% - phân bổ số TRỤ theo loại (11/60/150 kW) từ kết quả tổng s(j)
 % - quy ra số CHARGER theo số cổng/charger
 % - chính sách: mở CC-BDX cho bus; tăng phân bổ cho CC-TT1, CC-TM2, CC-TLC
 %
 % Input:  evcs_data.mat (chứa EVcount, SCF, maxCharger, STATIONS, TYPES)
 %         hbipso_best.mat (CSP, s, x)
-% Output: chargers_by_type_per_station.csv + Image
+% Output: chargers_by_type_per_station.csv + bảng in ra màn hình
 
 clc;
 
-%% ====== Policy of Parameters ======
+%% ====== Tham số chính sách (bạn chỉnh ở đây) ======
 % Cổng/charger
 ports11  = 4;   % 11 kW: 4 cổng
 ports60  = 2;   % 60 kW: 2 cổng
@@ -19,7 +19,7 @@ ports150 = 2;   % 150 kW: 2 cổng
 % Yêu cầu mở bus tại CC-BDX
 bdx_min_bus_chargers = 2;   % tối thiểu 2 charger 150kW tại CC-BDX
 rebalance_to = {'CC-TT1','CC-TM2','CC-TLC'}; % tránh dồn: đảm bảo tối thiểu
-min_total_stalls_each = 50; % mỗi trạm trên tối thiểu bấy nhiêu CONGSAC (stalls)
+min_total_stalls_each = 50; % mỗi trạm trên tối thiểu bấy nhiêu TRỤ (stalls)
 
 %% ====== Nạp dữ liệu ======
 S = load('evcs_data.mat');      % D, EVcount, SCF, maxCharger, STATIONS, TYPES, ...
@@ -45,7 +45,7 @@ L150  = sum(L_jt(:,grp150),2);
 Lsum  = L11 + L60 + L150;
 Lsum(Lsum==0) = 1;            % tránh chia 0
 
-s_tot = R.s(:);               % tổng CONGSAC (stalls) mỗi trạm
+s_tot = R.s(:);               % tổng TRỤ (stalls) mỗi trạm
 CSP   = R.CSP(:)>0;
 
 % Giới hạn theo loại (từ maxCharger trong .mod)
@@ -53,7 +53,7 @@ max11  = S.maxCharger(:,grp11);            % [m x 1]
 max60  = sum(S.maxCharger(:,grp60),2);     % [m x 1] 4 loại gộp
 max150 = S.maxCharger(:,grp150);           % [m x 1]
 
-%% ====== 1) Phân bổ CONGSAC theo tỷ trọng tải ======
+%% ====== 1) Phân bổ TRỤ theo tỷ trọng tải ======
 s11_raw  = s_tot .* (L11 ./ Lsum);
 s60_raw  = s_tot .* (L60 ./ Lsum);
 s150_raw = s_tot .* (L150 ./ Lsum);
@@ -89,7 +89,7 @@ s150(:) = 0;
 s150(jBDX) = min(max150(jBDX), cut150);
 
 % Ép tối thiểu charger bus tại BDX
-s150_min = ports150 * bdx_min_bus_chargers;        % đổi charger -> CONGSAC
+s150_min = ports150 * bdx_min_bus_chargers;        % đổi charger -> TRỤ
 s150(jBDX) = max(s150(jBDX), s150_min);
 s150(jBDX) = min(s150(jBDX), max150(jBDX));        % không vượt max
 
@@ -176,36 +176,22 @@ for j=1:m
     end
 end
 
-%% ====== 5) Quy đổi CONGSAC -> CHARGER theo số cổng ======
+%% ====== 5) Quy đổi TRỤ -> CHARGER theo số cổng ======
 c11  = ceil(s11  / ports11);
 c60  = ceil(s60  / ports60);
 c150 = ceil(s150 / ports150);
 
-%% ===== 6) Xuất bảng (CHỈ CHARGERS + TOTAL, KHÔNG có 'Open') =====
-c_tot = c11(:) + c60(:) + c150(:);   % tổng CHARGER mỗi trạm
-
-% (Tuỳ chọn) nếu chỉ muốn hiện các trạm đang mở, lọc trước khi tạo bảng:
-% idxOpen = CSP(:)~=0;
-% stations_ = stations(idxOpen);
-% c_tot_   = c_tot(idxOpen);
-% c11_     = c11(idxOpen);
-% c60_     = c60(idxOpen);
-% c150_    = c150(idxOpen);
-% T = table(stations_(:), c_tot_, c11_, c60_, c150_, ...
-%     'VariableNames', {'Station','Chargers_total','Chargers_11kW','Chargers_60kW','Chargers_150kW'});
-
-% Mặc định: giữ tất cả trạm, KHÔNG có cột Open
+%% ====== 6) Xuất bảng ======
 T = table( ...
-    stations(:), c_tot, c11(:), c60(:), c150(:), ...
-    'VariableNames', {'Station','Chargers_total','Chargers_11kW','Chargers_60kW','Chargers_150kW'});
-
-% (Tuỳ chọn) sắp xếp theo tổng charger giảm dần:
-% T = sortrows(T, 'Chargers_total', 'descend');
+    stations, CSP, s_tot, s11, s60, s150, c11, c60, c150, ...
+    'VariableNames', {'Station','Open','Stalls_total','Stalls_11kW','Stalls_60kW','Stalls_150kW', ...
+                      'Chargers_11kW','Chargers_60kW','Chargers_150kW'});
 
 disp(T);
-writetable(T, 'chargers_per_station.csv');
+writetable(T, 'chargers_by_type_per_station.csv');
+fprintf('\nSaved: chargers_by_type_per_station.csv\n');
 
 % Thống kê nhanh
-fprintf('Tổng CHARGER: total=%d, 11kW=%d, 60kW=%d, 150kW=%d\n', ...
-    sum(c_tot), sum(c11), sum(c60), sum(c150));
+fprintf('\nTổng TRỤ: %d | 11kW=%d, 60kW=%d, 150kW=%d\n', sum(s_tot), sum(s11), sum(s60), sum(s150));
+fprintf('Tổng CHARGER: 11kW=%d, 60kW=%d, 150kW=%d\n', sum(c11), sum(c60), sum(c150));
 end
